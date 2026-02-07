@@ -2,18 +2,34 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Card deck with names + values
+const cards = [
+  { name: "2", value: 2 },
+  { name: "3", value: 3 },
+  { name: "4", value: 4 },
+  { name: "5", value: 5 },
+  { name: "6", value: 6 },
+  { name: "7", value: 7 },
+  { name: "8", value: 8 },
+  { name: "9", value: 9 },
+  { name: "10", value: 10 },
+  { name: "J", value: 10 },
+  { name: "Q", value: 10 },
+  { name: "K", value: 10 },
+  { name: "A", value: 11 }
+];
+
 const games = {};
-const cards = [2,3,4,5,6,7,8,9,10,10,10,11];
 
 // Draw random card
 function draw() {
   return cards[Math.floor(Math.random() * cards.length)];
 }
 
-// ✅ SOFT / HARD ACE HAND CALCULATOR
+// Calculate hand with soft/hard Ace
 function calculateHand(hand) {
-  let total = hand.reduce((a, b) => a + b, 0);
-  let aceCount = hand.filter(c => c === 11).length;
+  let total = hand.reduce((a, c) => a + c.value, 0);
+  let aceCount = hand.filter(c => c.name === "A").length;
 
   while (total > 21 && aceCount > 0) {
     total -= 10; // Ace becomes 1
@@ -23,14 +39,20 @@ function calculateHand(hand) {
   return total;
 }
 
+// Convert hand to readable text
+function handText(hand) {
+  return hand.map(c => c.name).join(" & ");
+}
+
 // Test route
 app.get("/", (req, res) => {
   res.send("Blackjack API running");
 });
 
-// 🃏 Start game
+// 🃏 Start
 app.get("/blackjack/start", (req, res) => {
   const user = req.query.user;
+
   const player = [draw(), draw()];
   const dealer = [draw()];
 
@@ -39,8 +61,8 @@ app.get("/blackjack/start", (req, res) => {
   const total = calculateHand(player);
 
   res.send(
-    `🃏 ${user} got ${player.join(" & ")} (Total ${total}). ` +
-    `Dealer shows ${dealer[0]}. Type !hit or !stand`
+    `🃏 ${user} got ${handText(player)} (Total ${total}). ` +
+    `Dealer shows ${dealer[0].name}. Type !hit or !stand`
   );
 });
 
@@ -60,10 +82,14 @@ app.get("/blackjack/hit", (req, res) => {
 
   if (total > 21) {
     game.done = true;
-    return res.send(`💥 BUST! ${user} got ${card}. Total ${total}. Dealer wins 😈`);
+    return res.send(
+      `💥 BUST! ${user} got ${card.name}. Total ${total}. Dealer wins 😈`
+    );
   }
 
-  res.send(`🃏 ${user} HIT and got ${card}. Total ${total}. Hit or Stand?`);
+  res.send(
+    `🃏 ${user} HIT and got ${card.name}. Total ${total}. Hit or Stand?`
+  );
 });
 
 // 🛑 Stand
@@ -84,9 +110,13 @@ app.get("/blackjack/stand", (req, res) => {
   game.done = true;
 
   if (dealerTotal > 21 || playerTotal > dealerTotal) {
-    res.send(`🎉 ${user} WINS! ${playerTotal} vs Dealer ${dealerTotal}`);
+    res.send(
+      `🎉 ${user} WINS! ${playerTotal} vs Dealer ${dealerTotal}`
+    );
   } else {
-    res.send(`❌ ${user} loses. ${playerTotal} vs Dealer ${dealerTotal}`);
+    res.send(
+      `❌ ${user} loses. ${playerTotal} vs Dealer ${dealerTotal}`
+    );
   }
 });
 
