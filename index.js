@@ -57,4 +57,6 @@ app.get("/blackjack/stand", (req,res)=>{
     res.send(`❌ ${user} loses. ${playerTotal} vs Dealer ${dealerTotal}`);
 });
 
-app.listen(PORT, ()=>console.log("Running"));
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("Server running on port", PORT);
+});
