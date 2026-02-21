@@ -2,125 +2,107 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Card deck with names + values
-const cards = [
-  { name: "2", value: 2 },
-  { name: "3", value: 3 },
-  { name: "4", value: 4 },
-  { name: "5", value: 5 },
-  { name: "6", value: 6 },
-  { name: "7", value: 7 },
-  { name: "8", value: 8 },
-  { name: "9", value: 9 },
-  { name: "10", value: 10 },
-  { name: "J", value: 10 },
-  { name: "Q", value: 10 },
-  { name: "K", value: 10 },
-  { name: "A", value: 11 }
-];
-
 const games = {};
 
-// Draw random card
-function draw() {
-  return cards[Math.floor(Math.random() * cards.length)];
+const cards = [
+  {n:"2",v:2},{n:"3",v:3},{n:"4",v:4},{n:"5",v:5},
+  {n:"6",v:6},{n:"7",v:7},{n:"8",v:8},{n:"9",v:9},
+  {n:"10",v:10},{n:"J",v:10},{n:"Q",v:10},{n:"K",v:10},
+  {n:"A",v:11}
+];
+
+function draw(){
+  return cards[Math.floor(Math.random()*cards.length)];
 }
 
-// Calculate hand with soft/hard Ace
-function calculateHand(hand) {
-  let total = hand.reduce((a, c) => a + c.value, 0);
-  let aceCount = hand.filter(c => c.name === "A").length;
-
-  while (total > 21 && aceCount > 0) {
-    total -= 10; // Ace becomes 1
-    aceCount--;
+function total(hand){
+  let sum = hand.reduce((a,c)=>a+c.v,0);
+  let aces = hand.filter(c=>c.n==="A").length;
+  while(sum>21 && aces>0){
+    sum -= 10;
+    aces--;
   }
-
-  return total;
+  return sum;
 }
 
-// Convert hand to readable text
-function handText(hand) {
-  return hand.map(c => c.name).join(" & ");
+function text(hand){
+  return hand.map(c=>c.n).join(" & ");
 }
 
-// Test route
-app.get("/", (req, res) => {
+app.get("/", (req,res)=>{
   res.send("Blackjack API running");
 });
 
-// 🃏 Start
-app.get("/blackjack/start", (req, res) => {
-  const user = req.query.user;
+/* START GAME */
+app.get("/blackjack/start",(req,res)=>{
+  const user=req.query.user;
 
-  const player = [draw(), draw()];
-  const dealer = [draw()];
+  if(games[user] && !games[user].done){
+    return res.send("❌ Finish your current game first (!hit or !stand)");
+  }
 
-  games[user] = { player, dealer, done: false };
+  const player=[draw(),draw()];
+  const dealer=[draw()];
 
-  const total = calculateHand(player);
+  games[user]={player,dealer,done:false};
 
   res.send(
-    `🃏 ${user} got ${handText(player)} (Total ${total}). ` +
-    `Dealer shows ${dealer[0].name}. Type !hit or !stand`
+    `🃏 ${user} got ${text(player)} (Total ${total(player)}). ` +
+    `Dealer shows ${dealer[0].n}. !hit or !stand`
   );
 });
 
-// 🃏 Hit
-app.get("/blackjack/hit", (req, res) => {
-  const user = req.query.user;
-  const game = games[user];
+/* HIT */
+app.get("/blackjack/hit",(req,res)=>{
+  const user=req.query.user;
+  const game=games[user];
 
-  if (!game || game.done) {
+  if(!game || game.done)
     return res.send("❌ Start game using !blackjack");
-  }
 
-  const card = draw();
+  const card=draw();
   game.player.push(card);
 
-  const total = calculateHand(game.player);
-
-  if (total > 21) {
-    game.done = true;
-    return res.send(
-      `💥 BUST! ${user} got ${card.name}. Total ${total}. Dealer wins 😈`
-    );
+  if(total(game.player)>21){
+    game.done=true;
+    delete games[user];
+    return res.send(`💥 BUST! Dealer wins 😈`);
   }
 
-  res.send(
-    `🃏 ${user} HIT and got ${card.name}. Total ${total}. Hit or Stand?`
-  );
+  res.send(`🃏 HIT ${card.n}. Total ${total(game.player)}.`);
 });
 
-// 🛑 Stand
-app.get("/blackjack/stand", (req, res) => {
-  const user = req.query.user;
-  const game = games[user];
+/* STAND */
+app.get("/blackjack/stand",(req,res)=>{
+  const user=req.query.user;
+  const game=games[user];
 
-  if (!game || game.done) {
+  if(!game || game.done)
     return res.send("❌ No active game.");
-  }
 
-  while (calculateHand(game.dealer) < 17) {
+  while(total(game.dealer)<17){
     game.dealer.push(draw());
   }
 
-  const playerTotal = calculateHand(game.player);
-  const dealerTotal = calculateHand(game.dealer);
-  game.done = true;
+  const p=total(game.player);
+  const d=total(game.dealer);
 
-  if (dealerTotal > 21 || playerTotal > dealerTotal) {
-    res.send(
-      `🎉 ${user} WINS! ${playerTotal} vs Dealer ${dealerTotal}`
-    );
-  } else {
-    res.send(
-      `❌ ${user} loses. ${playerTotal} vs Dealer ${dealerTotal}`
-    );
+  let message="";
+
+  if(p===d){
+    message="😐 PUSH!";
   }
+  else if(d>21 || p>d){
+    message="🎉 YOU WIN!";
+  }
+  else{
+    message="❌ Dealer wins 😈";
+  }
+
+  delete games[user];
+  res.send(`${message} (${p} vs ${d})`);
 });
 
-// Start server
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port", PORT);
+app.listen(PORT,"0.0.0.0",()=>{
+  console.log("Server running on port",PORT);
 });
