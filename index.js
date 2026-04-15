@@ -18,10 +18,12 @@ function draw(){
 function total(hand){
   let sum = hand.reduce((a,c)=>a+c.v,0);
   let aces = hand.filter(c=>c.n==="A").length;
+
   while(sum>21 && aces>0){
     sum -= 10;
     aces--;
   }
+
   return sum;
 }
 
@@ -37,8 +39,9 @@ app.get("/", (req,res)=>{
 app.get("/blackjack/start",(req,res)=>{
   const user=req.query.user;
 
+  // Block restart spam
   if(games[user] && !games[user].done){
-    return res.send("❌ Finish your current game first (!hit or !stand)");
+    return res.send(`❌ ${user}, finish your current game first (!hit / !stand)`);
   }
 
   const player=[draw(),draw()];
@@ -47,8 +50,10 @@ app.get("/blackjack/start",(req,res)=>{
   games[user]={player,dealer,done:false};
 
   res.send(
-    `🃏 ${user} got ${text(player)} (Total ${total(player)}). ` +
-    `Dealer shows ${dealer[0].n}. !hit or !stand`
+    `🃏 ${user} started Blackjack!\n` +
+    `Your cards: ${text(player)} (Total ${total(player)})\n` +
+    `Dealer shows: ${dealer[0].n}\n` +
+    `Type !hit or !stand`
   );
 });
 
@@ -57,19 +62,22 @@ app.get("/blackjack/hit",(req,res)=>{
   const user=req.query.user;
   const game=games[user];
 
-  if(!game || game.done)
-    return res.send("❌ Start game using !blackjack");
+  if(!game || game.done){
+    return res.send(`❌ ${user}, you have no active game. Use !blackjack`);
+  }
 
   const card=draw();
   game.player.push(card);
 
-  if(total(game.player)>21){
+  const t=total(game.player);
+
+  if(t>21){
     game.done=true;
     delete games[user];
-    return res.send(`💥 BUST! Dealer wins 😈`);
+    return res.send(`💥 ${user} BUST! (${t}) Dealer wins 😈`);
   }
 
-  res.send(`🃏 HIT ${card.n}. Total ${total(game.player)}.`);
+  res.send(`👉 ${user} HIT → ${card.n} (Total ${t})`);
 });
 
 /* STAND */
@@ -77,8 +85,9 @@ app.get("/blackjack/stand",(req,res)=>{
   const user=req.query.user;
   const game=games[user];
 
-  if(!game || game.done)
-    return res.send("❌ No active game.");
+  if(!game || game.done){
+    return res.send(`❌ ${user}, no active game.`);
+  }
 
   while(total(game.dealer)<17){
     game.dealer.push(draw());
@@ -87,20 +96,26 @@ app.get("/blackjack/stand",(req,res)=>{
   const p=total(game.player);
   const d=total(game.dealer);
 
-  let message="";
+  let result="";
 
   if(p===d){
-    message="😐 PUSH!";
+    result="😐 PUSH!";
   }
   else if(d>21 || p>d){
-    message="🎉 YOU WIN!";
+    result="🎉 YOU WIN!";
   }
   else{
-    message="❌ Dealer wins 😈";
+    result="❌ Dealer wins 😈";
   }
 
   delete games[user];
-  res.send(`${message} (${p} vs ${d})`);
+
+  res.send(
+    `🏁 ${user} RESULT:\n` +
+    `Your Total: ${p}\n` +
+    `Dealer Total: ${d}\n` +
+    `${result}`
+  );
 });
 
 app.listen(PORT,"0.0.0.0",()=>{
