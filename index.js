@@ -4,7 +4,6 @@ const PORT = process.env.PORT || 8080;
 
 const games = {};
 const points = {};
-const bets = {};
 
 const cards = [
   {n:"2",v:2},{n:"3",v:3},{n:"4",v:4},{n:"5",v:5},
@@ -55,7 +54,7 @@ app.get("/points/remove",(req,res)=>{
   if(!points[user]) points[user]=0;
   points[user]-=amt;
 
-  if(points[user] < 0) points[user]=0;
+  if(points[user]<0) points[user]=0;
 
   res.send(`💸 ${user} lost ${amt} pts (Now: ${points[user]})`);
 });
@@ -92,34 +91,20 @@ app.get("/points/reset",(req,res)=>{
   res.send("🔄 Leaderboard reset!");
 });
 
-/* SET BET */
-app.get("/bet",(req,res)=>{
-  const user=req.query.user;
-  const amt=parseInt(req.query.amount);
-
-  if(!points[user] || points[user] < amt){
-    return res.send(`❌ ${user}, not enough points.`);
-  }
-
-  bets[user]=amt;
-  res.send(`🎯 ${user} bet set to ${amt}`);
-});
-
-/* START GAME */
+/* START GAME WITH BET */
 app.get("/blackjack/start",(req,res)=>{
   const user=req.query.user;
+  const bet=parseInt(req.query.bet);
 
   if(games[user] && !games[user].done){
     return res.send(`❌ ${user}, finish your current game first.`);
   }
 
-  if(!bets[user]){
-    return res.send(`❌ ${user}, set a bet first using !bet`);
+  if(!bet || bet<=0){
+    return res.send(`❌ ${user}, enter bet like !blackjack 100`);
   }
 
-  const bet=bets[user];
-
-  if(points[user] < bet){
+  if(!points[user] || points[user]<bet){
     return res.send(`❌ ${user}, not enough points.`);
   }
 
