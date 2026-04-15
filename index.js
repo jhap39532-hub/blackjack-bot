@@ -4,6 +4,7 @@ const PORT = process.env.PORT || 8080;
 
 const games = {};
 const points = {};
+const bets = {};
 
 const cards = [
   {n:"2",v:2},{n:"3",v:3},{n:"4",v:4},{n:"5",v:5},
@@ -35,7 +36,7 @@ app.get("/", (req,res)=>{
   res.send("Blackjack API running");
 });
 
-/* ADD POINTS (MOD) */
+/* ADD POINTS */
 app.get("/points/add",(req,res)=>{
   const user=req.query.user;
   const amt=parseInt(req.query.amount);
@@ -43,16 +44,29 @@ app.get("/points/add",(req,res)=>{
   if(!points[user]) points[user]=0;
   points[user]+=amt;
 
-  res.send(`💰 ${user} now has ${points[user]} points`);
+  res.send(`💰 ${user} now has ${points[user]} pts`);
+});
+
+/* REMOVE POINTS */
+app.get("/points/remove",(req,res)=>{
+  const user=req.query.user;
+  const amt=parseInt(req.query.amount);
+
+  if(!points[user]) points[user]=0;
+  points[user]-=amt;
+
+  if(points[user] < 0) points[user]=0;
+
+  res.send(`💸 ${user} lost ${amt} pts (Now: ${points[user]})`);
 });
 
 /* CHECK POINTS */
 app.get("/points",(req,res)=>{
   const user=req.query.user;
-  res.send(`💳 ${user} has ${points[user] || 0} points`);
+  res.send(`💳 ${user} has ${points[user] || 0} pts`);
 });
 
-/* TOP 3 LEADERBOARD */
+/* LEADERBOARD */
 app.get("/points/top",(req,res)=>{
   const sorted = Object.entries(points)
     .sort((a,b)=>b[1]-a[1])
@@ -62,7 +76,7 @@ app.get("/points/top",(req,res)=>{
     return res.send("🏆 No players yet.");
   }
 
-  let msg="🏆 TOP PLAYERS:\n";
+  let msg="🏆 TOP 3:\n";
   sorted.forEach((p,i)=>{
     msg += `${i+1}. ${p[0]} - ${p[1]} pts\n`;
   });
@@ -70,26 +84,53 @@ app.get("/points/top",(req,res)=>{
   res.send(msg);
 });
 
-/* START */
+/* RESET LEADERBOARD (LINK ONLY) */
+app.get("/points/reset",(req,res)=>{
+  for(let u in points){
+    points[u]=0;
+  }
+  res.send("🔄 Leaderboard reset!");
+});
+
+/* SET BET */
+app.get("/bet",(req,res)=>{
+  const user=req.query.user;
+  const amt=parseInt(req.query.amount);
+
+  if(!points[user] || points[user] < amt){
+    return res.send(`❌ ${user}, not enough points.`);
+  }
+
+  bets[user]=amt;
+  res.send(`🎯 ${user} bet set to ${amt}`);
+});
+
+/* START GAME */
 app.get("/blackjack/start",(req,res)=>{
   const user=req.query.user;
 
   if(games[user] && !games[user].done){
-    return res.send(`❌ ${user}, finish your current game first (!hit / !stand)`);
+    return res.send(`❌ ${user}, finish your current game first.`);
   }
 
-  if(!points[user] || points[user] < 100){
-    return res.send(`❌ ${user}, you need 100 points to play.`);
+  if(!bets[user]){
+    return res.send(`❌ ${user}, set a bet first using !bet`);
+  }
+
+  const bet=bets[user];
+
+  if(points[user] < bet){
+    return res.send(`❌ ${user}, not enough points.`);
   }
 
   const player=[draw(),draw()];
   const dealer=[draw()];
 
-  games[user]={player,dealer,done:false};
+  games[user]={player,dealer,done:false,bet};
 
   res.send(
-    `🃏 ${user} started Blackjack!\n` +
-    `Cards: ${text(player)} (Total ${total(player)})\n` +
+    `🃏 ${user} started Blackjack (Bet: ${bet})\n` +
+    `Cards: ${text(player)} (${total(player)})\n` +
     `Dealer: ${dealer[0].n}`
   );
 });
@@ -110,12 +151,12 @@ app.get("/blackjack/hit",(req,res)=>{
 
   if(t>21){
     game.done=true;
-    points[user]-=100;
+    points[user]-=game.bet;
     delete games[user];
-    return res.send(`💥 ${user} BUST! -100 pts`);
+    return res.send(`💥 ${user} BUST! -${game.bet}`);
   }
 
-  res.send(`👉 ${user} HIT → ${card.n} (Total ${t})`);
+  res.send(`👉 ${user} HIT → ${card.n} (${t})`);
 });
 
 /* STAND */
@@ -137,24 +178,21 @@ app.get("/blackjack/stand",(req,res)=>{
   let result="";
 
   if(p===d){
-    result="😐 PUSH (0 pts)";
+    result="😐 PUSH";
   }
   else if(d>21 || p>d){
-    points[user]+=150;
-    result="🎉 WIN +150 pts";
+    const win=Math.floor(game.bet*1.9);
+    points[user]+=win;
+    result=`🎉 WIN +${win}`;
   }
   else{
-    points[user]-=100;
-    result="❌ LOSS -100 pts";
+    points[user]-=game.bet;
+    result=`❌ LOSS -${game.bet}`;
   }
 
   delete games[user];
 
-  res.send(
-    `🏁 ${user} RESULT:\n` +
-    `You: ${p} | Dealer: ${d}\n` +
-    `${result}`
-  );
+  res.send(`🏁 ${user}: ${result} (${p} vs ${d})`);
 });
 
 app.listen(PORT,"0.0.0.0",()=>{
