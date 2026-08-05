@@ -3,10 +3,6 @@ const app = express();
 
 const PORT = process.env.PORT || 8080;
 
-// =========================
-// DATA
-// =========================
-
 const games = {};
 const points = {};
 
@@ -35,12 +31,12 @@ function draw() {
 }
 
 // =========================
-// HAND TOTAL
-// Soft / Hard Ace support
+// TOTAL + ACE LOGIC
+// Ace automatically changes
+// from 11 to 1 when needed
 // =========================
 
 function total(hand) {
-
   let sum = hand.reduce((a, c) => a + c.v, 0);
 
   let aces = hand.filter(c => c.n === "A").length;
@@ -62,9 +58,7 @@ function handText(hand) {
 // =========================
 
 app.get("/", (req, res) => {
-
   res.send("Blackjack API Running");
-
 });
 
 // =========================
@@ -72,17 +66,15 @@ app.get("/", (req, res) => {
 // =========================
 
 app.get("/points", (req, res) => {
-
   const user = req.query.user;
 
   if (!user) {
     return res.send("Missing username");
   }
 
-  const balance = points[user] || 0;
-
-  res.send(`💳 ${user} has ${balance} pts`);
-
+  res.send(
+    `💳 ${user} has ${points[user] || 0} pts`
+  );
 });
 
 // =========================
@@ -91,20 +83,24 @@ app.get("/points", (req, res) => {
 // =========================
 
 app.get("/points/add", (req, res) => {
-
   const user = req.query.user;
   const amount = parseInt(req.query.amount);
 
-  if (!user || !Number.isInteger(amount) || amount <= 0) {
+  if (
+    !user ||
+    !Number.isInteger(amount) ||
+    amount <= 0
+  ) {
     return res.send("Invalid user or amount");
   }
 
-  points[user] = (points[user] || 0) + amount;
+  points[user] =
+    (points[user] || 0) + amount;
 
   res.send(
-    `💰 Added ${amount} pts to ${user}. Balance: ${points[user]} pts`
+    `💰 Added ${amount} pts to ${user}. ` +
+    `Balance: ${points[user]} pts`
   );
-
 });
 
 // =========================
@@ -113,11 +109,14 @@ app.get("/points/add", (req, res) => {
 // =========================
 
 app.get("/points/remove", (req, res) => {
-
   const user = req.query.user;
   const amount = parseInt(req.query.amount);
 
-  if (!user || !Number.isInteger(amount) || amount <= 0) {
+  if (
+    !user ||
+    !Number.isInteger(amount) ||
+    amount <= 0
+  ) {
     return res.send("Invalid user or amount");
   }
 
@@ -127,17 +126,16 @@ app.get("/points/remove", (req, res) => {
   );
 
   res.send(
-    `💸 Removed ${amount} pts from ${user}. Balance: ${points[user]} pts`
+    `💸 Removed ${amount} pts from ${user}. ` +
+    `Balance: ${points[user]} pts`
   );
-
 });
 
 // =========================
-// TOP 3 LEADERBOARD
+// TOP 3
 // =========================
 
 app.get("/points/top", (req, res) => {
-
   const leaderboard = Object.entries(points)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
@@ -153,17 +151,17 @@ app.get("/points/top", (req, res) => {
     )
     .join(" | ");
 
-  res.send(`🏆 TOP 3 | ${message}`);
-
+  res.send(
+    `🏆 TOP 3 | ${message}`
+  );
 });
 
 // =========================
-// RESET ALL POINTS
+// RESET EVERYTHING
 // Browser only
 // =========================
 
 app.get("/points/reset", (req, res) => {
-
   for (const user in points) {
     delete points[user];
   }
@@ -172,17 +170,17 @@ app.get("/points/reset", (req, res) => {
     delete games[user];
   }
 
-  res.send("🔄 All points and active games reset.");
-
+  res.send(
+    "🔄 All points and active games reset."
+  );
 });
 
 // =========================
 // START BLACKJACK
-// !bj <amount>
+// !bj <bet>
 // =========================
 
 app.get("/blackjack/start", (req, res) => {
-
   const user = req.query.user;
   const bet = parseInt(req.query.bet);
 
@@ -192,22 +190,25 @@ app.get("/blackjack/start", (req, res) => {
 
   const balance = points[user] || 0;
 
-  // No points = NO CHAT RESPONSE
+  // Zero points = silent
   if (balance <= 0) {
     return res.send("");
   }
 
-  // Invalid bet = no response
-  if (!Number.isInteger(bet) || bet <= 0) {
+  // Invalid bet = silent
+  if (
+    !Number.isInteger(bet) ||
+    bet <= 0
+  ) {
     return res.send("");
   }
 
-  // Bet greater than balance
+  // Can't bet more than balance
   if (bet > balance) {
     return res.send("");
   }
 
-  // Prevent card rerolling
+  // Can't reroll cards
   if (games[user]) {
     return res.send("");
   }
@@ -227,14 +228,16 @@ app.get("/blackjack/start", (req, res) => {
     bet
   };
 
-  const playerTotal = total(player);
+  const playerTotal =
+    total(player);
 
   res.send(
     `🃏 ${user} | Bet: ${bet} | ` +
-    `Cards: ${handText(player)} (${playerTotal}) | ` +
-    `Dealer: ${dealer[0].n} | !hit or !stand`
+    `Cards: ${handText(player)} ` +
+    `(${playerTotal}) | ` +
+    `Dealer: ${dealer[0].n} | ` +
+    `!hit or !stand`
   );
-
 });
 
 // =========================
@@ -242,21 +245,18 @@ app.get("/blackjack/start", (req, res) => {
 // =========================
 
 app.get("/blackjack/hit", (req, res) => {
-
   const user = req.query.user;
 
   if (!user) {
     return res.send("");
   }
 
-  // No points = blank
   if ((points[user] || 0) <= 0) {
     return res.send("");
   }
 
   const game = games[user];
 
-  // No game = blank
   if (!game) {
     return res.send("");
   }
@@ -265,32 +265,35 @@ app.get("/blackjack/hit", (req, res) => {
 
   game.player.push(card);
 
-  const playerTotal = total(game.player);
+  const playerTotal =
+    total(game.player);
 
   // BUST
   if (playerTotal > 21) {
-
     points[user] = Math.max(
       0,
       points[user] - game.bet
     );
 
+    const lostBet = game.bet;
     const balance = points[user];
 
     delete games[user];
 
     return res.send(
-      `💥 ${user} HIT ${card.n} → BUST ${playerTotal}! ` +
-      `-${game.bet} pts | Balance: ${balance}`
+      `💥 ${user} HIT ${card.n} → ` +
+      `BUST ${playerTotal}! ` +
+      `-${lostBet} pts | ` +
+      `Balance: ${balance}`
     );
   }
 
   res.send(
     `👉 ${user} HIT ${card.n} → ` +
-    `${handText(game.player)} (${playerTotal}) | ` +
+    `${handText(game.player)} ` +
+    `(${playerTotal}) | ` +
     `!hit or !stand`
   );
-
 });
 
 // =========================
@@ -298,21 +301,18 @@ app.get("/blackjack/hit", (req, res) => {
 // =========================
 
 app.get("/blackjack/stand", (req, res) => {
-
   const user = req.query.user;
 
   if (!user) {
     return res.send("");
   }
 
-  // No points = blank
   if ((points[user] || 0) <= 0) {
     return res.send("");
   }
 
   const game = games[user];
 
-  // No active game = blank
   if (!game) {
     return res.send("");
   }
@@ -322,8 +322,11 @@ app.get("/blackjack/stand", (req, res) => {
     game.dealer.push(draw());
   }
 
-  const playerTotal = total(game.player);
-  const dealerTotal = total(game.dealer);
+  const playerTotal =
+    total(game.player);
+
+  const dealerTotal =
+    total(game.dealer);
 
   const bet = game.bet;
 
@@ -334,16 +337,17 @@ app.get("/blackjack/stand", (req, res) => {
   // =========================
 
   if (playerTotal === dealerTotal) {
-
     result =
       `😐 ${user} PUSH | ` +
       `${playerTotal} vs Dealer ${dealerTotal} | ` +
-      `Bet returned`;
-
+      `No points won/lost | ` +
+      `Balance: ${points[user]}`;
   }
 
   // =========================
-  // PLAYER WINS
+  // WIN
+  // 1.9x TOTAL RETURN means
+  // NET PROFIT = 0.9x BET
   // =========================
 
   else if (
@@ -351,24 +355,24 @@ app.get("/blackjack/stand", (req, res) => {
     playerTotal > dealerTotal
   ) {
 
-    const winnings = Math.floor(bet * 1.9);
+    const profit =
+      Math.floor(bet * 0.9);
 
-    points[user] += winnings;
+    points[user] += profit;
 
     result =
       `🎉 ${user} WINS! ` +
       `${playerTotal} vs Dealer ${dealerTotal} | ` +
-      `+${winnings} pts | ` +
+      `+${profit} pts profit ` +
+      `(1.9x payout) | ` +
       `Balance: ${points[user]}`;
-
   }
 
   // =========================
-  // DEALER WINS
+  // LOSS
   // =========================
 
   else {
-
     points[user] = Math.max(
       0,
       points[user] - bet
@@ -379,23 +383,23 @@ app.get("/blackjack/stand", (req, res) => {
       `${playerTotal} vs Dealer ${dealerTotal} | ` +
       `-${bet} pts | ` +
       `Balance: ${points[user]}`;
-
   }
 
   delete games[user];
 
   res.send(result);
-
 });
 
 // =========================
 // SERVER
 // =========================
 
-app.listen(PORT, "0.0.0.0", () => {
-
-  console.log(
-    `Blackjack server running on port ${PORT}`
-  );
-
-});
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `Blackjack server running on port ${PORT}`
+    );
+  }
+);
